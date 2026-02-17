@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const db = require('./utilities/db');
@@ -106,6 +107,18 @@ app.use('/api/phone-directory', phoneDirectoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/roles', roleRoutes);
+
+// Serve frontend bundle when available (same-domain deployment).
+const frontendDistPath = path.resolve(__dirname, '../client/dist');
+const frontendIndexPath = path.join(frontendDistPath, 'index.html');
+if (fs.existsSync(frontendIndexPath)) {
+    app.use(express.static(frontendDistPath));
+    app.get(/^\/(?!api\/).*/, (req, res, next) => {
+        res.sendFile(frontendIndexPath, (err) => {
+            if (err) next(err);
+        });
+    });
+}
 
 // ============================================
 // HEALTH CHECK ENDPOINT
