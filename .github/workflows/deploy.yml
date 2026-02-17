@@ -23,6 +23,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Check Node and NPM version
+        run: |
+          node -v
+          npm -v
+
       - name: Install Frontend Dependencies
         working-directory: client
         run: npm install
@@ -81,9 +86,16 @@ jobs:
             tar -xzf /tmp/deploy.tar.gz -C "$APP_PATH"
             rm -f /tmp/deploy.tar.gz
 
+            # Ensure Node.js and npm are available
+            if ! command -v npm &> /dev/null; then
+              echo "npm not found, attempting to load from common paths..."
+              export PATH=$PATH:$HOME/bin:/usr/local/bin
+            fi
+
             # Setup Server
             cd "$APP_PATH/server"
-            npm ci --omit=dev || npm install --omit=dev
+            # Try to install dependencies
+            npm install --production || npm install
 
             # Create .env from secrets
             cat > .env <<EOF
