@@ -149,12 +149,25 @@ app.get(/^\/(?!api\/).*/, (req, res, next) => {
 // HEALTH CHECK ENDPOINT
 // ============================================
 
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK',
-        message: 'Server is running',
-        timestamp: new Date().toISOString()
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        const dbCheck = await db.query('SELECT 1');
+        const userCount = await db.query('SELECT COUNT(*) FROM users');
+        res.json({ 
+            status: 'OK',
+            message: 'Server is running',
+            database: 'Connected',
+            users_count: userCount.rows[0].count,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            status: 'Error',
+            message: 'Server is running but database is not reachable',
+            error: err.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // ============================================

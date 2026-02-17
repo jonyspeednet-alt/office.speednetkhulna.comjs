@@ -83,6 +83,21 @@ CREATE DATABASE office_db;
 psql -U postgres -d office_db -f database_schema.sql
 ```
 
+### Sync Local/pgAdmin DB to Main Host DB
+
+This project includes a ready command to copy full PostgreSQL schema+data from source DB to a main host DB.
+
+1. Set source DB in `.env` using `DB_*` (or optional `SRC_DB_*`)
+2. Set target/main host DB in `.env` using `MAIN_DB_*`
+3. Run:
+
+```bash
+cd server
+npm run db:sync-main
+```
+
+Note: this restores a full dump into `MAIN_DB_*`, so target objects are replaced.
+
 ### 5. Run Development Servers
 
 **Backend** (Terminal 1):
