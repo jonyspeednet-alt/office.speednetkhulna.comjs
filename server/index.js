@@ -111,14 +111,39 @@ app.use('/api/roles', roleRoutes);
 // Serve frontend bundle when available (same-domain deployment).
 const frontendDistPath = path.resolve(__dirname, '../client/dist');
 const frontendIndexPath = path.join(frontendDistPath, 'index.html');
-if (fs.existsSync(frontendIndexPath)) {
+
+// Serve static files if directory exists
+if (fs.existsSync(frontendDistPath)) {
     app.use(express.static(frontendDistPath));
-    app.get(/^\/(?!api\/).*/, (req, res, next) => {
+}
+
+// Handle all non-API routes by serving the frontend or providing a clear error
+app.get(/^\/(?!api\/).*/, (req, res, next) => {
+    if (fs.existsSync(frontendIndexPath)) {
         res.sendFile(frontendIndexPath, (err) => {
             if (err) next(err);
         });
-    });
-}
+    } else {
+        // If it's just the root path, we can provide a more friendly message
+        if (req.path === '/') {
+            return res.status(200).json({
+                status: 'OK',
+                message: 'Speednet Office Management API is running',
+                frontend: 'Frontend bundle not found. Please run "npm run build" in the client directory to serve the UI.',
+                check_path: frontendIndexPath,
+                health_check: '/api/health'
+            });
+        }
+        
+        // For other paths, return 404 with a helpful message
+        res.status(404).json({ 
+            error: 'Not Found',
+            message: 'The requested endpoint does not exist',
+            path: req.path,
+            frontend_status: 'Missing client/dist/index.html'
+        });
+    }
+});
 
 // ============================================
 // HEALTH CHECK ENDPOINT
