@@ -10,7 +10,7 @@ PowerShell এ (Windows):
 
 ```powershell
 # Project directory তে যান
-cd c:\xampp\htdocs\office.speednetkhulna.comjs
+cd c:\xampp\htdocs\my.speednetkhulna.comjs
 
 # Git initialize করুন
 git init
