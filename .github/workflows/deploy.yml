@@ -150,8 +150,32 @@ jobs:
 
             # Create root .env from secrets (server code loads ../.env and ../../.env)
             echo "Phase: write environment file"
+            if [ -z "${{ secrets.DB_HOST }}" ]; then
+              echo "ERROR: DB_HOST is missing in GitHub repository secrets."
+              exit 1
+            fi
+            if [ -z "${{ secrets.DB_PORT }}" ]; then
+              echo "ERROR: DB_PORT is missing in GitHub repository secrets."
+              exit 1
+            fi
+            if [ -z "${{ secrets.DB_USER }}" ]; then
+              echo "ERROR: DB_USER is missing in GitHub repository secrets."
+              exit 1
+            fi
+            if [ -z "${{ secrets.DB_PASSWORD }}" ]; then
+              echo "ERROR: DB_PASSWORD is missing in GitHub repository secrets."
+              exit 1
+            fi
+            if [ -z "${{ secrets.DB_NAME }}" ]; then
+              echo "ERROR: DB_NAME is missing in GitHub repository secrets."
+              exit 1
+            fi
             if [ -z "${{ secrets.JWT_SECRET }}" ]; then
               echo "ERROR: JWT_SECRET is missing in GitHub repository secrets."
+              exit 1
+            fi
+            if [ -z "${{ secrets.SESSION_SECRET }}" ]; then
+              echo "ERROR: SESSION_SECRET is missing in GitHub repository secrets."
               exit 1
             fi
 
@@ -215,13 +239,21 @@ jobs:
             echo "Phase: health check"
             ATTEMPT=1
             MAX_ATTEMPTS=12
-            until curl -fsS http://127.0.0.1:5000/api/health > /dev/null; do
+            until [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; do
+              HEALTH_HTTP_CODE=$(curl -sS -o /tmp/health_response.json -w "%{http_code}" http://127.0.0.1:5000/api/health || true)
+              if [ "$HEALTH_HTTP_CODE" = "200" ]; then
+                echo "Health check passed."
+                break
+              fi
+              echo "Health check attempt ${ATTEMPT}/${MAX_ATTEMPTS} failed with HTTP ${HEALTH_HTTP_CODE}."
+              echo "Health response body:"
+              cat /tmp/health_response.json || true
+
               if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
                 echo "Health check failed after ${MAX_ATTEMPTS} attempts."
                 "$PM2_BIN" logs "$APP_NAME" --lines 120 --nostream || true
                 exit 1
               fi
-              echo "Health check attempt ${ATTEMPT}/${MAX_ATTEMPTS} failed. Retrying in 5s..."
               ATTEMPT=$((ATTEMPT + 1))
               sleep 5
             done

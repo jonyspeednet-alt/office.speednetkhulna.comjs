@@ -156,13 +156,24 @@ app.get(/^\/(?!api\/).*/, (req, res, next) => {
 
 app.get('/api/health', async (req, res) => {
     try {
-        const dbCheck = await db.query('SELECT 1');
-        const userCount = await db.query('SELECT COUNT(*) FROM users');
+        await db.query('SELECT 1');
+        const usersTableCheck = await db.query(
+            "SELECT to_regclass('public.users') AS users_table"
+        );
+        const hasUsersTable = Boolean(usersTableCheck.rows[0]?.users_table);
+        let usersCount = null;
+
+        if (hasUsersTable) {
+            const userCountResult = await db.query('SELECT COUNT(*) FROM users');
+            usersCount = userCountResult.rows[0].count;
+        }
+
         res.json({ 
             status: 'OK',
             message: 'Server is running',
             database: 'Connected',
-            users_count: userCount.rows[0].count,
+            users_table_exists: hasUsersTable,
+            users_count: usersCount,
             timestamp: new Date().toISOString()
         });
     } catch (err) {
@@ -170,6 +181,8 @@ app.get('/api/health', async (req, res) => {
             status: 'Error',
             message: 'Server is running but database is not reachable',
             error: err.message,
+            code: err.code || null,
+            detail: err.detail || null,
             timestamp: new Date().toISOString()
         });
     }
