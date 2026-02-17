@@ -92,28 +92,54 @@ jobs:
             # Ensure Node.js and npm are available on the server.
             if ! command -v npm > /dev/null 2>&1; then
               echo "npm not found. Trying common PATH locations first..."
-              export PATH="$PATH:$HOME/bin:/usr/local/bin:/usr/bin:/bin"
+              export PATH="$PATH:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/v24/bin"
+              hash -r
             fi
 
             if ! command -v npm > /dev/null 2>&1; then
-              echo "npm still missing. Attempting to install Node.js + npm..."
+              echo "npm still missing. Attempting auto-install (apt, then nvm)..."
+              set +e
+
+              # 1) Try apt-based install only when non-interactive sudo is available.
               if command -v apt-get > /dev/null 2>&1; then
-                if command -v sudo > /dev/null 2>&1; then
-                  curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-                  sudo apt-get install -y nodejs
+                if command -v sudo > /dev/null 2>&1 && sudo -n true > /dev/null 2>&1; then
+                  if command -v curl > /dev/null 2>&1; then
+                    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+                    sudo apt-get install -y nodejs
+                  elif command -v wget > /dev/null 2>&1; then
+                    wget -qO- https://deb.nodesource.com/setup_24.x | sudo -E bash -
+                    sudo apt-get install -y nodejs
+                  fi
                 else
-                  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-                  apt-get install -y nodejs
+                  echo "Skipping apt install (no non-interactive sudo)."
                 fi
-              else
-                echo "Unsupported package manager for auto-install."
               fi
+
+              # 2) Fallback: user-space install via nvm (no sudo required).
+              if ! command -v npm > /dev/null 2>&1; then
+                if command -v curl > /dev/null 2>&1; then
+                  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+                elif command -v wget > /dev/null 2>&1; then
+                  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+                fi
+
+                export NVM_DIR="$HOME/.nvm"
+                [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                command -v nvm > /dev/null 2>&1 && nvm install 24 && nvm use 24
+              fi
+
+              set -e
+              hash -r
             fi
 
             if ! command -v npm > /dev/null 2>&1; then
-              echo "ERROR: npm is not available on the server. Install Node.js/npm and retry."
+              echo "ERROR: npm is not available on the server."
+              echo "Install Node.js/npm manually on the target host, then rerun deployment."
               exit 1
             fi
+
+            node -v
+            npm -v
 
             # Setup Server
             cd "$APP_PATH/server"
@@ -136,6 +162,9 @@ jobs:
             EOF
 
             # Start/Restart with PM2
+            if ! command -v pm2 > /dev/null 2>&1; then
+              npm install -g pm2
+            fi
             if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
               pm2 restart "$APP_NAME" --update-env
             else
