@@ -76,13 +76,19 @@ jobs:
             APP_PATH="${{ secrets.SERVER_PATH }}"
             FRONTEND_PATH="${{ secrets.FRONTEND_PATH }}"
 
+            # Ensure directories exist
             mkdir -p "$APP_PATH"
+            mkdir -p "$FRONTEND_PATH"
+
+            # Extract archive
             tar -xzf /tmp/deploy.tar.gz -C "$APP_PATH"
             rm -f /tmp/deploy.tar.gz
 
+            # Setup Server
             cd "$APP_PATH/server"
             npm ci --omit=dev || npm install --omit=dev
 
+            # Create .env from secrets
             cat > .env <<EOF
             PORT=5000
             NODE_ENV=production
@@ -97,6 +103,7 @@ jobs:
             FRONTEND_URL=${{ secrets.FRONTEND_URL }}
             EOF
 
+            # Start/Restart with PM2
             if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
               pm2 restart "$APP_NAME" --update-env
             else
@@ -104,10 +111,12 @@ jobs:
             fi
             pm2 save
 
-            mkdir -p "$FRONTEND_PATH"
+            # Deploy Frontend to public_html
             rm -rf "$FRONTEND_PATH"/*
             cp -r "$APP_PATH/client/dist/"* "$FRONTEND_PATH"/
 
+            # Health check
+            sleep 5
             curl -fsS http://localhost:5000/api/health > /dev/null
 
       - name: Deployment Result
