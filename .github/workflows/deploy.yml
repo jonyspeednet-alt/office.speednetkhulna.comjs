@@ -166,15 +166,32 @@ jobs:
 
             # Start/Restart with PM2
             echo "Phase: pm2 process"
+            export PM2_HOME="$APP_PATH/.pm2"
+            mkdir -p "$PM2_HOME"
+
+            PM2_BIN="pm2"
             if ! command -v pm2 > /dev/null 2>&1; then
-              npm install -g pm2
+              echo "pm2 not found globally. Installing local pm2 in server..."
+              npm install pm2 --no-save
+              PM2_BIN="$APP_PATH/server/node_modules/.bin/pm2"
             fi
-            if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
-              pm2 restart "$APP_NAME" --update-env
-            else
-              pm2 start index.js --name "$APP_NAME"
+
+            "$PM2_BIN" -v
+            "$PM2_BIN" delete "$APP_NAME" > /dev/null 2>&1 || true
+
+            set +e
+            "$PM2_BIN" start index.js --name "$APP_NAME" --update-env
+            PM2_START_RC=$?
+            set -e
+
+            if [ "$PM2_START_RC" -ne 0 ]; then
+              echo "PM2 failed to start app (exit code: $PM2_START_RC)."
+              "$PM2_BIN" status || true
+              "$PM2_BIN" logs "$APP_NAME" --lines 120 --nostream || true
+              exit 1
             fi
-            pm2 save
+
+            "$PM2_BIN" save || echo "Warning: pm2 save failed; continuing deployment."
 
             # Deploy Frontend to public_html
             echo "Phase: deploy frontend files"
@@ -188,7 +205,7 @@ jobs:
             until curl -fsS http://localhost:5000/api/health > /dev/null; do
               if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
                 echo "Health check failed after ${MAX_ATTEMPTS} attempts."
-                pm2 logs "$APP_NAME" --lines 120 --nostream || true
+                "$PM2_BIN" logs "$APP_NAME" --lines 120 --nostream || true
                 exit 1
               fi
               echo "Health check attempt ${ATTEMPT}/${MAX_ATTEMPTS} failed. Retrying in 5s..."
