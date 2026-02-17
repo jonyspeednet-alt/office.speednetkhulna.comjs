@@ -74,7 +74,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script_stop: true
           script: |
-            set -e
+            set -Eeuo pipefail
+            trap 'echo "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
 
             APP_NAME="office-app"
             APP_PATH="${{ secrets.SERVER_PATH }}"
@@ -142,11 +143,13 @@ jobs:
             npm -v
 
             # Setup Server
+            echo "Phase: server dependencies"
             cd "$APP_PATH/server"
             # Try to install dependencies
             npm install --production || npm install
 
             # Create root .env from secrets (server code loads ../.env and ../../.env)
+            echo "Phase: write environment file"
             cat > "$APP_PATH/.env" <<EOF
             PORT=5000
             NODE_ENV=production
@@ -162,6 +165,7 @@ jobs:
             EOF
 
             # Start/Restart with PM2
+            echo "Phase: pm2 process"
             if ! command -v pm2 > /dev/null 2>&1; then
               npm install -g pm2
             fi
@@ -173,10 +177,12 @@ jobs:
             pm2 save
 
             # Deploy Frontend to public_html
+            echo "Phase: deploy frontend files"
             rm -rf "$FRONTEND_PATH"/*
             cp -r "$APP_PATH/client/dist/"* "$FRONTEND_PATH"/
 
             # Health check with retries
+            echo "Phase: health check"
             ATTEMPT=1
             MAX_ATTEMPTS=12
             until curl -fsS http://localhost:5000/api/health > /dev/null; do
