@@ -89,10 +89,30 @@ jobs:
             tar -xzf /tmp/deploy.tar.gz -C "$APP_PATH"
             rm -f /tmp/deploy.tar.gz
 
-            # Ensure Node.js and npm are available
-            if ! command -v npm &> /dev/null; then
-              echo "npm not found, attempting to load from common paths..."
-              export PATH=$PATH:$HOME/bin:/usr/local/bin
+            # Ensure Node.js and npm are available on the server.
+            if ! command -v npm > /dev/null 2>&1; then
+              echo "npm not found. Trying common PATH locations first..."
+              export PATH="$PATH:$HOME/bin:/usr/local/bin:/usr/bin:/bin"
+            fi
+
+            if ! command -v npm > /dev/null 2>&1; then
+              echo "npm still missing. Attempting to install Node.js + npm..."
+              if command -v apt-get > /dev/null 2>&1; then
+                if command -v sudo > /dev/null 2>&1; then
+                  curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+                  sudo apt-get install -y nodejs
+                else
+                  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+                  apt-get install -y nodejs
+                fi
+              else
+                echo "Unsupported package manager for auto-install."
+              fi
+            fi
+
+            if ! command -v npm > /dev/null 2>&1; then
+              echo "ERROR: npm is not available on the server. Install Node.js/npm and retry."
+              exit 1
             fi
 
             # Setup Server
