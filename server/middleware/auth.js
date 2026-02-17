@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../utilities/db');
+const { getAuthSecret } = require('../utilities/authSecret');
 
 /**
  * Authentication Middleware
@@ -16,7 +17,13 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // 2. Verify Token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const authSecret = getAuthSecret();
+    if (!authSecret) {
+      console.error('Auth Middleware Error: JWT_SECRET/SESSION_SECRET is missing in environment');
+      return res.status(500).json({ message: 'Server configuration error: JWT secret missing' });
+    }
+
+    const decoded = jwt.verify(token, authSecret);
     console.log('Auth: Token verified for user ID:', decoded.id);
 
     // 3. Fetch User, Role and Permissions

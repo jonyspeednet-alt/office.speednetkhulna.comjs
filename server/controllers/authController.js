@@ -1,6 +1,7 @@
 const pool = require('../utilities/db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { getAuthSecret } = require('../utilities/authSecret');
 
 /**
  * Login User
@@ -10,7 +11,10 @@ const login = async (req, res) => {
   try {
     // 0. Input Validation & Debugging
     console.log('--- Login Request Received ---');
-    console.log('Request Body:', req.body);
+    console.log('Request Body:', {
+      ...req.body,
+      password: req.body?.password ? '[REDACTED]' : undefined
+    });
 
     const { identifier, password } = req.body;
 
@@ -31,7 +35,17 @@ const login = async (req, res) => {
     const query = `
       SELECT * FROM users 
       WHERE LOWER(TRIM(email)) = LOWER($1) 
-      OR LOWER(REGEXP_REPLACE(REPLACE(TRIM(CAST(employee_id AS TEXT)), '-', ''), '[\\s\\u2010-\\u2015\\u2212-]', '', 'g')) = $2
+      OR LOWER(
+        REPLACE(
+          REPLACE(
+            REPLACE(
+              REPLACE(
+                REPLACE(TRIM(CAST(employee_id AS TEXT)), '-', ''),
+              ' ', ''),
+            E'\\t', ''),
+          E'\\n', ''),
+        E'\\r', '')
+      ) = $2
       LIMIT 1
     `;
     const result = await pool.query(query, [
@@ -52,8 +66,6 @@ const login = async (req, res) => {
 
     // ডিবাগিং লগ: সার্ভার কনসোলে পাসওয়ার্ড চেক করার জন্য
     console.log('--- Password Verification ---');
-    console.log(`Input Password: '${password}'`);
-    console.log(`DB Password:    '${dbPassword}'`);
 
     // First try bcrypt if it looks like a hash
     if (dbPassword.startsWith('$2')) {
@@ -79,9 +91,18 @@ const login = async (req, res) => {
     }
 
     // 3. Generate Token
+    const authSecret = getAuthSecret();
+    if (!authSecret) {
+      console.error('Login Error: JWT_SECRET/SESSION_SECRET is missing in environment');
+      return res.status(500).json({
+        message: 'Server configuration error',
+        error: 'JWT secret is not configured'
+      });
+    }
+
     const token = jwt.sign(
       { id: user.id, role: user.role, emp_id: user.employee_id, full_name: user.full_name },
-      process.env.JWT_SECRET,
+      authSecret,
       { expiresIn: '1d' }
     );
 

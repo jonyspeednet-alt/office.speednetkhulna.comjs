@@ -2,22 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3EtYaUoyFBUGZXSRdP6FCjEWyxIwkVYbvMb8epvDcaM8OVQOXrLI503rzzG4M8L
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
 
 ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_role_id_fkey;
 ALTER TABLE IF EXISTS ONLY public.leave_entitlements DROP CONSTRAINT IF EXISTS leave_entitlements_user_id_fkey;
@@ -123,7 +113,7 @@ DROP FUNCTION IF EXISTS public.set_timestamp_leave_entitlements();
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
-COMMENT ON SCHEMA public IS '';
+
 
 
 --
@@ -155,8 +145,6 @@ $$;
 
 
 SET default_tablespace = '';
-
-SET default_table_access_method = heap;
 
 --
 -- Name: bandwidth_requests; Type: TABLE; Schema: public; Owner: -
@@ -2223,14 +2211,14 @@ CREATE INDEX user_id ON public.leave_requests USING btree (user_id);
 -- Name: leave_entitlements trg_leave_entitlements_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_leave_entitlements_updated_at BEFORE UPDATE ON public.leave_entitlements FOR EACH ROW EXECUTE FUNCTION public.set_timestamp_leave_entitlements();
+CREATE TRIGGER trg_leave_entitlements_updated_at BEFORE UPDATE ON public.leave_entitlements FOR EACH ROW EXECUTE PROCEDURE public.set_timestamp_leave_entitlements();
 
 
 --
 -- Name: roles update_roles_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON public.roles FOR EACH ROW EXECUTE PROCEDURE public.update_updated_at_column();
 
 
 --
@@ -2260,6 +2248,3 @@ ALTER TABLE ONLY public.users
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 3EtYaUoyFBUGZXSRdP6FCjEWyxIwkVYbvMb8epvDcaM8OVQOXrLI503rzzG4M8L
-

@@ -150,6 +150,11 @@ jobs:
 
             # Create root .env from secrets (server code loads ../.env and ../../.env)
             echo "Phase: write environment file"
+            if [ -z "${{ secrets.JWT_SECRET }}" ]; then
+              echo "ERROR: JWT_SECRET is missing in GitHub repository secrets."
+              exit 1
+            fi
+
             cat > "$APP_PATH/.env" <<'EOF'
             PORT=5000
             NODE_ENV=production

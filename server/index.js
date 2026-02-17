@@ -12,6 +12,11 @@ const db = require('./utilities/db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const authSecretConfigured = Boolean(process.env.JWT_SECRET || process.env.SESSION_SECRET);
+
+if (!authSecretConfigured) {
+    console.warn('⚠️  JWT_SECRET/SESSION_SECRET is missing. Login/auth will fail until one is configured.');
+}
 
 // ============================================
 // MIDDLEWARE SETUP
