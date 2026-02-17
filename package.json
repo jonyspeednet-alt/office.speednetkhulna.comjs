@@ -1,0 +1,29 @@
+{
+  "name": "office.speednetkhulna.com",
+  "version": "1.0.0",
+  "description": "Next-Gen Solution by Ahadix",
+  "main": "server/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server/index.js"
+  },
+  "keywords": [],
+  "author": "Mehedi Hasan",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ejs": "^4.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "nodemon": "^3.1.11",
+    "pg": "^8.11.3",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4"
+  }
+}
