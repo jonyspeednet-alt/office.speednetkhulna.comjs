@@ -21,10 +21,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 24
+          check-latest: true
 
-      - name: Check Node and NPM version
+      - name: Debug Environment
         run: |
+          which node || echo "node not found"
+          which npm || echo "npm not found"
           node -v
           npm -v
 
