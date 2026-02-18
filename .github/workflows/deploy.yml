@@ -79,8 +79,17 @@ jobs:
 
             APP_NAME="office-app"
             APP_PATH="${{ secrets.SERVER_PATH }}"
-            # New domain folder path
-            FRONTEND_PATH="${{ secrets.FRONTEND_PATH }}/my.speednetkhulna.com"
+            # Frontend deploy path:
+            # 1) Use FRONTEND_PATH secret when provided
+            # 2) Otherwise fallback to cPanel-style default: $HOME/public_html
+            FRONTEND_BASE="${{ secrets.FRONTEND_PATH }}"
+            if [ -z "$FRONTEND_BASE" ]; then
+              FRONTEND_BASE="$HOME/public_html"
+              echo "FRONTEND_PATH secret not set. Falling back to: $FRONTEND_BASE"
+            fi
+            FRONTEND_BASE="${FRONTEND_BASE%/}"
+            FRONTEND_PATH="${FRONTEND_BASE}/my.speednetkhulna.com"
+            echo "Resolved FRONTEND_PATH: $FRONTEND_PATH"
 
             # Ensure directories exist
             mkdir -p "$APP_PATH"
