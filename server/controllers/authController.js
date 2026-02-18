@@ -22,35 +22,26 @@ const login = async (req, res) => {
       console.log('Error: Missing identifier or password');
       return res.status(400).json({ message: 'Email/ID and Password are required' });
     }
+    const inputPassword = typeof password === 'string' ? password : String(password);
 
     const cleanIdentifier = identifier.trim();
-    // Normalize employee ID inputs so Unicode dashes/spaces do not break matching.
     const normalizedEmployeeIdentifier = cleanIdentifier
-      .replace(/[\u2010-\u2015\u2212]/g, '-')
-      .replace(/\s+/g, '')
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
     console.log(`Processing Login for: '${cleanIdentifier}'`);
 
     // 1. Find User by Email or Employee ID (Case Insensitive & Safe Cast)
     const query = `
       SELECT * FROM users 
-      WHERE LOWER(TRIM(email)) = LOWER($1) 
-      OR LOWER(
-        REPLACE(
-          REPLACE(
-            REPLACE(
-              REPLACE(
-                REPLACE(TRIM(CAST(employee_id AS TEXT)), '-', ''),
-              ' ', ''),
-            E'\\t', ''),
-          E'\\n', ''),
-        E'\\r', '')
-      ) = $2
+      WHERE LOWER(TRIM(COALESCE(email, ''))) = LOWER($1)
+      OR LOWER(TRIM(COALESCE(CAST(employee_id AS TEXT), ''))) = LOWER($1)
+      OR LOWER(REGEXP_REPLACE(COALESCE(CAST(employee_id AS TEXT), ''), '[^a-z0-9]+', '', 'g')) = $2
+      ORDER BY id ASC
       LIMIT 1
     `;
     const result = await pool.query(query, [
       cleanIdentifier,
-      normalizedEmployeeIdentifier.replace(/-/g, '')
+      normalizedEmployeeIdentifier
     ]);
     const user = result.rows[0];
 
@@ -70,7 +61,7 @@ const login = async (req, res) => {
     // First try bcrypt if it looks like a hash
     if (dbPassword.startsWith('$2')) {
       try {
-        isMatch = await bcrypt.compare(password, dbPassword);
+        isMatch = await bcrypt.compare(inputPassword, dbPassword);
         console.log(`Method: Bcrypt | Match: ${isMatch}`);
       } catch (err) {
         console.error('Bcrypt Error:', err);
@@ -80,7 +71,7 @@ const login = async (req, res) => {
 
     // If still not matched, try plain text fallback
     if (!isMatch) {
-      isMatch = (password === dbPassword);
+      isMatch = (inputPassword === dbPassword);
       console.log(`Method: Plain Text | Match: ${isMatch}`);
     }
     console.log('-------------------');

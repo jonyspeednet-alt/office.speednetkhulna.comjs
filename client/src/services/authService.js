@@ -18,7 +18,14 @@ export const loginUser = async (identifier, password) => {
     return response.data;
   } catch (error) {
     console.error("Login API Error:", error); // ডিবাগিং এর জন্য লগ যোগ করা হলো
-    throw error.response?.data || { message: 'Login failed' };
+    const responseData = error.response?.data;
+    if (typeof responseData === 'string') {
+      throw { message: responseData };
+    }
+    if (responseData && typeof responseData === 'object') {
+      throw responseData;
+    }
+    throw { message: error.message || 'Login failed' };
   }
 };
 
