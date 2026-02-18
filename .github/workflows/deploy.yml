@@ -279,28 +279,9 @@ jobs:
 
             # Health check with retries
             echo "Phase: health check"
-            if ! command -v curl > /dev/null 2>&1; then
-              echo "ERROR: curl is not available on server."
-              exit 1
-            fi
-            MAX_ATTEMPTS=12
-            ATTEMPT=1
-            until [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; do
-              HEALTH_RESPONSE="$(curl -sS http://127.0.0.1:5000/api/health || true)"
-              echo "Health response attempt ${ATTEMPT}/${MAX_ATTEMPTS}: $HEALTH_RESPONSE"
-              if echo "$HEALTH_RESPONSE" | grep -q '"status":"OK"'; then
-                echo "Health check passed."
-                break
-              fi
-
-              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-                echo "Health check failed after ${MAX_ATTEMPTS} attempts."
-                "$PM2_BIN" logs "$APP_NAME" --lines 120 --nostream || true
-                exit 1
-              fi
-              ATTEMPT=$((ATTEMPT + 1))
-              sleep 5
-            done
+            node -e "const http=require('http'); const max=12; const delay=5000; let attempt=1; const run=()=>{const req=http.get('http://127.0.0.1:5000/api/health',(res)=>{let body=''; res.on('data',(c)=>body+=c); res.on('end',()=>{console.log('Health response attempt '+attempt+'/'+max+': '+body); const ok=res.statusCode===200 && body.includes('\"status\":\"OK\"'); if(ok){console.log('Health check passed.'); process.exit(0);} if(attempt>=max){console.error('Health check failed after '+max+' attempts.'); process.exit(1);} attempt+=1; setTimeout(run,delay);});}); req.on('error',(err)=>{console.log('Health response attempt '+attempt+'/'+max+': request error: '+err.message); if(attempt>=max){console.error('Health check failed after '+max+' attempts.'); process.exit(1);} attempt+=1; setTimeout(run,delay);});}; run();"
+            HEALTH_RC=$?
+            [ "$HEALTH_RC" -eq 0 ] || { "$PM2_BIN" logs "$APP_NAME" --lines 120 --nostream || true; exit 1; }
 
       - name: Deployment Result
         if: always()
