@@ -79,6 +79,13 @@ jobs:
 
             APP_NAME="office-app"
             APP_PATH="${{ secrets.SERVER_PATH }}"
+            DEFAULT_APP_PATH="$HOME/office_app"
+            if [ -z "$APP_PATH" ] || echo "$APP_PATH" | grep -Eq '<[^>]+>'; then
+              APP_PATH="$DEFAULT_APP_PATH"
+              echo "SERVER_PATH secret missing or placeholder. Falling back to: $APP_PATH"
+            fi
+            APP_PATH="${APP_PATH%/}"
+
             # Frontend deploy path:
             # 1) Use FRONTEND_PATH secret when provided
             # 2) Otherwise fallback to cPanel-style default: $HOME/public_html
@@ -100,6 +107,7 @@ jobs:
 
             FRONTEND_PATH="${FRONTEND_BASE}/my.speednetkhulna.com"
             echo "Resolved FRONTEND_PATH: $FRONTEND_PATH"
+            echo "Resolved APP_PATH: $APP_PATH"
 
             # Ensure directories exist
             mkdir -p "$APP_PATH"
@@ -165,7 +173,7 @@ jobs:
             echo "Phase: server dependencies"
             cd "$APP_PATH/server"
             # Try to install dependencies
-            npm install --production || npm install
+            npm install --omit=dev || npm install
 
             # Create root .env from secrets (server code loads ../.env and ../../.env)
             echo "Phase: write environment file"
@@ -197,49 +205,32 @@ jobs:
               echo "ERROR: SESSION_SECRET is missing in GitHub repository secrets."
               exit 1
             fi
+            case "${{ secrets.DB_PORT }}" in
+              ''|*[!0-9]*)
+                echo "ERROR: DB_PORT must be numeric."
+                exit 1
+                ;;
+            esac
 
-            cat > "$APP_PATH/.env" <<'EOF'
-            PORT=5000
-            NODE_ENV=production
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-            TZ=Asia/Dhaka
-            FRONTEND_URL=https://my.speednetkhulna.com
-            EOF
+            ENV_FILE="$APP_PATH/.env"
+            printf '%s\n' \
+              "PORT=5000" \
+              "NODE_ENV=production" \
+              "DB_HOST=${{ secrets.DB_HOST }}" \
+              "DB_PORT=${{ secrets.DB_PORT }}" \
+              "DB_USER=${{ secrets.DB_USER }}" \
+              "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" \
+              "DB_NAME=${{ secrets.DB_NAME }}" \
+              "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+              "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" \
+              "TZ=Asia/Dhaka" \
+              "FRONTEND_URL=https://my.speednetkhulna.com" > "$ENV_FILE"
+            chmod 600 "$ENV_FILE" || true
+            echo "Environment file written: $ENV_FILE"
 
             # Validate DB connectivity before starting app
             echo "Phase: database precheck"
-            node - "$APP_PATH/.env" <<'EOF'
-            const path = require('path');
-            const dotenv = require('dotenv');
-            const { Pool } = require('pg');
-
-            const envPath = path.resolve(process.argv[2]);
-            dotenv.config({ path: envPath });
-
-            const pool = new Pool({
-              host: process.env.DB_HOST,
-              port: Number(process.env.DB_PORT || 5432),
-              user: process.env.DB_USER,
-              password: process.env.DB_PASSWORD,
-              database: process.env.DB_NAME
-            });
-
-            pool.query('SELECT 1')
-              .then(() => {
-                console.log('DB precheck: connection successful');
-                return pool.end();
-              })
-              .catch((err) => {
-                console.error('DB precheck failed:', err.message);
-                process.exit(1);
-              });
-            EOF
+            node -e "const dotenv=require('dotenv'); const {Pool}=require('pg'); dotenv.config({path:'$APP_PATH/.env'}); const pool=new Pool({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||5432),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME}); pool.query('SELECT 1').then(()=>{console.log('DB precheck: connection successful'); return pool.end();}).then(()=>process.exit(0)).catch((err)=>{console.error('DB precheck failed:', err.message); process.exit(1);});"
 
             # Start/Restart with PM2
             echo "Phase: pm2 process"
@@ -280,11 +271,19 @@ jobs:
 
             # Deploy Frontend to public_html
             echo "Phase: deploy frontend files"
-            rm -rf "$FRONTEND_PATH"/*
-            cp -r "$APP_PATH/client/dist/"* "$FRONTEND_PATH"/
+            if [ ! -f "$APP_PATH/client/dist/index.html" ]; then
+              echo "ERROR: frontend build artifacts missing at $APP_PATH/client/dist/index.html"
+              exit 1
+            fi
+            find "$FRONTEND_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            cp -a "$APP_PATH/client/dist/." "$FRONTEND_PATH/"
 
             # Health check with retries
             echo "Phase: health check"
+            if ! command -v curl > /dev/null 2>&1; then
+              echo "ERROR: curl is not available on server."
+              exit 1
+            fi
             MAX_ATTEMPTS=12
             ATTEMPT=1
             until [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; do
