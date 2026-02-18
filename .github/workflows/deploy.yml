@@ -84,28 +84,29 @@ jobs:
               APP_PATH="$DEFAULT_APP_PATH"
               echo "SERVER_PATH secret missing or placeholder. Falling back to: $APP_PATH"
             fi
+            APP_PATH="$(echo "$APP_PATH" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
             APP_PATH="${APP_PATH%/}"
 
-            # Frontend deploy path:
+            # Frontend deploy path (final directory path)
             # 1) Use FRONTEND_PATH secret when provided
-            # 2) Otherwise fallback to cPanel-style default: $HOME/public_html
-            DEFAULT_FRONTEND_BASE="$HOME/public_html"
-            FRONTEND_BASE="${{ secrets.FRONTEND_PATH }}"
-            if [ -z "$FRONTEND_BASE" ] || echo "$FRONTEND_BASE" | grep -Eq '<[^>]+>'; then
-              FRONTEND_BASE="$DEFAULT_FRONTEND_BASE"
-              echo "FRONTEND_PATH secret missing or placeholder. Falling back to: $FRONTEND_BASE"
+            # 2) Otherwise fallback to the expected domain path
+            DEFAULT_FRONTEND_PATH="/home/speeuvmq/my.speednetkhulna.com"
+            FRONTEND_PATH="${{ secrets.FRONTEND_PATH }}"
+            if [ -z "$FRONTEND_PATH" ] || echo "$FRONTEND_PATH" | grep -Eq '<[^>]+>'; then
+              FRONTEND_PATH="$DEFAULT_FRONTEND_PATH"
+              echo "FRONTEND_PATH secret missing or placeholder. Falling back to: $FRONTEND_PATH"
             fi
-            FRONTEND_BASE="${FRONTEND_BASE%/}"
+            FRONTEND_PATH="$(echo "$FRONTEND_PATH" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            FRONTEND_PATH="${FRONTEND_PATH%/}"
 
-            # If secret points to an inaccessible path, fallback to home public_html
-            if ! mkdir -p "$FRONTEND_BASE" 2>/dev/null; then
-              echo "FRONTEND_PATH is not writable: $FRONTEND_BASE"
-              FRONTEND_BASE="$DEFAULT_FRONTEND_BASE"
-              mkdir -p "$FRONTEND_BASE"
-              echo "Fallback FRONTEND_BASE: $FRONTEND_BASE"
+            # If configured path is not writable, fallback to the default path above.
+            if ! mkdir -p "$FRONTEND_PATH" 2>/dev/null; then
+              echo "FRONTEND_PATH is not writable: $FRONTEND_PATH"
+              FRONTEND_PATH="$DEFAULT_FRONTEND_PATH"
+              mkdir -p "$FRONTEND_PATH"
+              echo "Fallback FRONTEND_PATH: $FRONTEND_PATH"
             fi
 
-            FRONTEND_PATH="${FRONTEND_BASE}/my.speednetkhulna.com"
             echo "Resolved FRONTEND_PATH: $FRONTEND_PATH"
             echo "Resolved APP_PATH: $APP_PATH"
 
@@ -205,26 +206,24 @@ jobs:
               echo "ERROR: SESSION_SECRET is missing in GitHub repository secrets."
               exit 1
             fi
-            case "${{ secrets.DB_PORT }}" in
-              ''|*[!0-9]*)
-                echo "ERROR: DB_PORT must be numeric."
-                exit 1
-                ;;
-            esac
+            if ! echo "${{ secrets.DB_PORT }}" | grep -Eq '^[0-9]+$'; then
+              echo "ERROR: DB_PORT must be numeric."
+              exit 1
+            fi
 
             ENV_FILE="$APP_PATH/.env"
-            printf '%s\n' \
-              "PORT=5000" \
-              "NODE_ENV=production" \
-              "DB_HOST=${{ secrets.DB_HOST }}" \
-              "DB_PORT=${{ secrets.DB_PORT }}" \
-              "DB_USER=${{ secrets.DB_USER }}" \
-              "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" \
-              "DB_NAME=${{ secrets.DB_NAME }}" \
-              "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-              "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" \
-              "TZ=Asia/Dhaka" \
-              "FRONTEND_URL=https://my.speednetkhulna.com" > "$ENV_FILE"
+            : > "$ENV_FILE"
+            echo "PORT=5000" >> "$ENV_FILE"
+            echo "NODE_ENV=production" >> "$ENV_FILE"
+            echo "DB_HOST=${{ secrets.DB_HOST }}" >> "$ENV_FILE"
+            echo "DB_PORT=${{ secrets.DB_PORT }}" >> "$ENV_FILE"
+            echo "DB_USER=${{ secrets.DB_USER }}" >> "$ENV_FILE"
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> "$ENV_FILE"
+            echo "DB_NAME=${{ secrets.DB_NAME }}" >> "$ENV_FILE"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> "$ENV_FILE"
+            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> "$ENV_FILE"
+            echo "TZ=Asia/Dhaka" >> "$ENV_FILE"
+            echo "FRONTEND_URL=https://my.speednetkhulna.com" >> "$ENV_FILE"
             chmod 600 "$ENV_FILE" || true
             echo "Environment file written: $ENV_FILE"
 
@@ -269,7 +268,7 @@ jobs:
 
             "$PM2_BIN" save || echo "Warning: pm2 save failed; continuing deployment."
 
-            # Deploy Frontend to public_html
+            # Deploy frontend bundle to FRONTEND_PATH
             echo "Phase: deploy frontend files"
             if [ ! -f "$APP_PATH/client/dist/index.html" ]; then
               echo "ERROR: frontend build artifacts missing at $APP_PATH/client/dist/index.html"
