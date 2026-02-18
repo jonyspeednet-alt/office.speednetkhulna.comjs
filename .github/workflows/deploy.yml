@@ -212,6 +212,35 @@ jobs:
             FRONTEND_URL=https://my.speednetkhulna.com
             EOF
 
+            # Validate DB connectivity before starting app
+            echo "Phase: database precheck"
+            node - "$APP_PATH/.env" <<'EOF'
+            const path = require('path');
+            const dotenv = require('dotenv');
+            const { Pool } = require('pg');
+
+            const envPath = path.resolve(process.argv[2]);
+            dotenv.config({ path: envPath });
+
+            const pool = new Pool({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT || 5432),
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_NAME
+            });
+
+            pool.query('SELECT 1')
+              .then(() => {
+                console.log('DB precheck: connection successful');
+                return pool.end();
+              })
+              .catch((err) => {
+                console.error('DB precheck failed:', err.message);
+                process.exit(1);
+              });
+            EOF
+
             # Start/Restart with PM2
             echo "Phase: pm2 process"
             export PM2_HOME="$APP_PATH/.pm2"
@@ -256,17 +285,15 @@ jobs:
 
             # Health check with retries
             echo "Phase: health check"
-            ATTEMPT=1
             MAX_ATTEMPTS=12
+            ATTEMPT=1
             until [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; do
-              HEALTH_HTTP_CODE=$(curl -sS -o /tmp/health_response.json -w "%{http_code}" http://127.0.0.1:5000/api/health || true)
-              if [ "$HEALTH_HTTP_CODE" = "200" ]; then
+              HEALTH_RESPONSE="$(curl -sS http://127.0.0.1:5000/api/health || true)"
+              echo "Health response attempt ${ATTEMPT}/${MAX_ATTEMPTS}: $HEALTH_RESPONSE"
+              if echo "$HEALTH_RESPONSE" | grep -q '"status":"OK"'; then
                 echo "Health check passed."
                 break
               fi
-              echo "Health check attempt ${ATTEMPT}/${MAX_ATTEMPTS} failed with HTTP ${HEALTH_HTTP_CODE}."
-              echo "Health response body:"
-              cat /tmp/health_response.json || true
 
               if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
                 echo "Health check failed after ${MAX_ATTEMPTS} attempts."
