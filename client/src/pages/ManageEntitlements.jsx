@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEntitlementsData, addEntitlement, updateEntitlement, deleteEntitlement } from '../services/entitlementService';
 import Swal from 'sweetalert2';
 
 const ManageEntitlements = () => {
-  const [users, setUsers] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
-  const [entitlements, setEntitlements] = useState({});
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     user_id: '',
     leave_type_id: '',
@@ -14,37 +12,54 @@ const ManageEntitlements = () => {
     total_days: ''
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Fetch all data (users, leave types, entitlements)
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['entitlementsData'],
+    queryFn: getEntitlementsData,
+  });
 
-  const fetchData = async () => {
-    try {
-      const data = await getEntitlementsData();
-      setUsers(data.users);
-      setLeaveTypes(data.leaveTypes);
-      setEntitlements(data.entitlements);
-    } catch (error) {
-      console.error('Error fetching data', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const users = data?.users || [];
+  const leaveTypes = data?.leaveTypes || [];
+  const entitlements = data?.entitlements || {};
+
+  // Add Mutation
+  const addMutation = useMutation({
+    mutationFn: addEntitlement,
+    onSuccess: () => {
+      Swal.fire('Success', 'Entitlement added successfully!', 'success');
+      setFormData({ ...formData, total_days: '' });
+      queryClient.invalidateQueries(['entitlementsData']);
+    },
+    onError: () => Swal.fire('Error', 'Failed to add entitlement.', 'error')
+  });
+
+  // Update Mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, days }) => updateEntitlement(id, days),
+    onSuccess: () => {
+      Swal.fire('Updated!', 'Entitlement has been updated.', 'success');
+      queryClient.invalidateQueries(['entitlementsData']);
+    },
+    onError: () => Swal.fire('Error', 'Failed to update.', 'error')
+  });
+
+  // Delete Mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteEntitlement,
+    onSuccess: () => {
+      Swal.fire('Deleted!', 'Entitlement has been deleted.', 'success');
+      queryClient.invalidateQueries(['entitlementsData']);
+    },
+    onError: () => Swal.fire('Error', 'Failed to delete.', 'error')
+  });
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleAddSubmit = async (e) => {
+  const handleAddSubmit = (e) => {
     e.preventDefault();
-    try {
-      await addEntitlement(formData);
-      Swal.fire('Success', 'Entitlement added successfully!', 'success');
-      setFormData({ ...formData, total_days: '' }); // Reset days only
-      fetchData();
-    } catch (error) {
-      Swal.fire('Error', 'Failed to add entitlement.', 'error');
-    }
+    addMutation.mutate(formData);
   };
 
   const handleUpdate = async (id, currentDays) => {
@@ -55,20 +70,12 @@ const ManageEntitlements = () => {
       inputValue: currentDays,
       showCancelButton: true,
       inputValidator: (value) => {
-        if (!value) {
-          return 'You need to write something!'
-        }
+        if (!value) return 'You need to write something!';
       }
     });
 
     if (days) {
-      try {
-        await updateEntitlement(id, days);
-        Swal.fire('Updated!', 'Entitlement has been updated.', 'success');
-        fetchData();
-      } catch (error) {
-        Swal.fire('Error', 'Failed to update.', 'error');
-      }
+      updateMutation.mutate({ id, days });
     }
   };
 
@@ -83,13 +90,7 @@ const ManageEntitlements = () => {
     });
 
     if (result.isConfirmed) {
-      try {
-        await deleteEntitlement(id);
-        Swal.fire('Deleted!', 'Entitlement has been deleted.', 'success');
-        fetchData();
-      } catch (error) {
-        Swal.fire('Error', 'Failed to delete.', 'error');
-      }
+      deleteMutation.mutate(id);
     }
   };
 

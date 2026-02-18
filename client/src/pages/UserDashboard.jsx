@@ -1,26 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getUserDashboardData } from '../services/userDashboardService';
 import NoticeTicker from '../components/NoticeTicker';
 import moment from 'moment';
 
 const UserDashboard = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const result = await getUserDashboardData();
-        setData(result);
-      } catch (error) {
-        console.error("Failed to load dashboard data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['userDashboard'],
+    queryFn: getUserDashboardData,
+  });
 
   // Configuration for quota cards (Colors & Labels)
   const quotaConfig = [

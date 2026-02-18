@@ -1,16 +1,60 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPhones, getUsers, addPhone, updatePhone, deletePhone, exportPhonesCSV } from '../services/phoneDirectoryService';
-import { Modal, Button } from 'react-bootstrap'; // Assuming react-bootstrap is installed
+import { Modal, Button } from 'react-bootstrap';
 
 const PhoneDirectory = () => {
-  const [phones, setPhones] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRecords, setTotalRecords] = useState(0);
   const [message, setMessage] = useState(null);
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Fetch phones with pagination and search
+  const { data: phoneData, isLoading: loading } = useQuery({
+    queryKey: ['phones', page, debouncedSearch],
+    queryFn: () => getPhones(page, debouncedSearch),
+    placeholderData: (prev) => prev,
+  });
+
+  const phones = phoneData?.phones || [];
+  const totalPages = phoneData?.totalPages || 1;
+  const totalRecords = phoneData?.totalRecords || 0;
+
+  // Fetch users for dropdown
+  const { data: users = [] } = useQuery({
+    queryKey: ['directoryUsers'],
+    queryFn: getUsers,
+  });
+
+  // Mutations
+  const deleteMutation = useMutation({
+    mutationFn: deletePhone,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['phones']);
+      setMessage({ type: 'warning', text: 'Phone deleted successfully.' });
+    },
+    onError: () => setMessage({ type: 'danger', text: 'Failed to delete phone.' })
+  });
+
+  const upsertMutation = useMutation({
+    mutationFn: (data) => isEdit ? updatePhone(data.id, data) : addPhone(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['phones']);
+      setMessage({ type: 'success', text: isEdit ? 'Phone updated successfully!' : 'New phone added successfully!' });
+      setShowModal(false);
+    },
+    onError: () => setMessage({ type: 'danger', text: 'Operation failed.' })
+  });
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -19,68 +63,15 @@ const PhoneDirectory = () => {
     id: '', desk_name: '', assign_to: '', extension: '', phone_number: '', device_model: '', ip_address: ''
   });
 
-  useEffect(() => {
-    fetchPhones();
-    fetchUsers();
-    // eslint-disable-next-line
-  }, [page, search]);
-
-  const fetchPhones = async () => {
-    setLoading(true);
-    try {
-      const data = await getPhones(page, search);
-      setPhones(data.phones);
-      setTotalPages(data.totalPages);
-      setTotalRecords(data.totalRecords);
-    } catch (error) {
-      console.error('Error fetching phones', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const data = await getUsers();
-      setUsers(data);
-    } catch (error) {
-      console.error('Error fetching users', error);
-    }
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setPage(1); // Reset to page 1 on search
-    fetchPhones();
-  };
-
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this phone?')) {
-      try {
-        await deletePhone(id);
-        setMessage({ type: 'warning', text: 'Phone deleted successfully.' });
-        fetchPhones();
-      } catch (error) {
-        setMessage({ type: 'danger', text: 'Failed to delete phone.' });
-      }
+      deleteMutation.mutate(id);
     }
   };
 
-  const handleModalSubmit = async (e) => {
+  const handleModalSubmit = (e) => {
     e.preventDefault();
-    try {
-      if (isEdit) {
-        await updatePhone(formData.id, formData);
-        setMessage({ type: 'success', text: 'Phone updated successfully!' });
-      } else {
-        await addPhone(formData);
-        setMessage({ type: 'success', text: 'New phone added successfully!' });
-      }
-      setShowModal(false);
-      fetchPhones();
-    } catch (error) {
-      setMessage({ type: 'danger', text: 'Operation failed.' });
-    }
+    upsertMutation.mutate(formData);
   };
 
   const openAddModal = () => {
@@ -112,7 +103,7 @@ const PhoneDirectory = () => {
         </div>
         
         <div className="d-flex gap-2 align-items-center d-print-none">
-          <form onSubmit={handleSearch} className="d-flex">
+          <form onSubmit={(e) => e.preventDefault()} className="d-flex">
             <div className="input-group">
               <span className="input-group-text bg-white border-end-0 rounded-start-pill ps-3"><i className="fas fa-search text-muted"></i></span>
               <input 

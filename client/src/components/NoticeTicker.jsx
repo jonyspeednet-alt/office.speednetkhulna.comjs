@@ -1,24 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getNotice } from '../services/noticeService';
 import '../styles/NoticeTicker.css';
 
 const NoticeTicker = () => {
-  const [notice, setNotice] = useState('');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['activeNotice'],
+    queryFn: getNotice,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
-  useEffect(() => {
-    const fetchNotice = async () => {
-      try {
-        const data = await getNotice();
-        setNotice(data?.notice || '');
-      } catch (error) {
-        console.error('Failed to load notice:', error);
-        setNotice('');
-      }
-    };
-    fetchNotice();
-  }, []);
+  if (isLoading || error || !data?.notice) return null;
 
-  if (!notice) return null;
+  const notice = data.notice;
 
   return (
     <div className="news-ticker">

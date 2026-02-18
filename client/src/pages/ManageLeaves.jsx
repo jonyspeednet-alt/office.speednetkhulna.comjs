@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import Swal from 'sweetalert2';
 import ImageWithFallback from '../components/ImageWithFallback';
@@ -9,16 +10,46 @@ import '../styles/ManageLeaves.css';
 const STATUS_TABS = ['All', 'Pending', 'Approved', 'Rejected'];
 
 const ManageLeaves = () => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
   const [activeStatus, setActiveStatus] = useState('All');
   const [expandedGroups, setExpandedGroups] = useState({});
   const [filters, setFilters] = useState({ search: '', month: '', year: '' });
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
 
+  // Debounce search filter
   useEffect(() => {
-    fetchData();
-  }, []);
+    const handler = setTimeout(() => setDebouncedSearch(filters.search), 400);
+    return () => clearTimeout(handler);
+  }, [filters.search]);
+
+  // Fetch leave requests with React Query
+  const { data: requests = [], isLoading: loading, error: fetchError } = useQuery({
+    queryKey: ['leaveRequests', debouncedSearch, filters.month, filters.year],
+    queryFn: () => getLeaveRequests({ search: debouncedSearch, month: filters.month, year: filters.year }),
+    placeholderData: (prev) => prev,
+  });
+
+  // Status Update Mutation
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }) => updateLeaveStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['leaveRequests']);
+      Swal.fire({
+        title: 'Updated',
+        text: 'Leave status updated successfully.',
+        icon: 'success',
+        timer: 1400,
+        showConfirmButton: false
+      });
+    },
+    onError: (err) => {
+      Swal.fire({
+        title: 'Update Failed',
+        text: err.message || 'Could not update this leave request.',
+        icon: 'error'
+      });
+    }
+  });
 
   const stats = useMemo(
     () =>
@@ -41,36 +72,13 @@ const ManageLeaves = () => {
     return requests.filter((request) => request.status === activeStatus);
   }, [requests, activeStatus]);
 
-  const fetchData = async (overrideFilters = null) => {
-    const appliedFilters = overrideFilters || filters;
-    setLoading(true);
-    setError('');
-    try {
-      const data = await getLeaveRequests(appliedFilters);
-      setRequests(Array.isArray(data) ? data : []);
-    } catch (fetchError) {
-      const message = fetchError?.response?.data?.message || fetchError?.message || 'Could not load leave requests.';
-      setError(message);
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFilterChange = (event) => {
     setFilters((prev) => ({ ...prev, [event.target.name]: event.target.value }));
   };
 
-  const handleSearch = (event) => {
-    event.preventDefault();
-    fetchData();
-  };
-
   const handleReset = () => {
-    const defaultFilters = { search: '', month: '', year: '' };
-    setFilters(defaultFilters);
+    setFilters({ search: '', month: '', year: '' });
     setActiveStatus('All');
-    fetchData(defaultFilters);
   };
 
   const toggleGroup = (groupId) => {
@@ -107,26 +115,12 @@ const ManageLeaves = () => {
       cancelButtonText: 'Cancel'
     });
 
-    if (!result.isConfirmed) return;
-
-    try {
-      await updateLeaveStatus(id, status);
-      await Swal.fire({
-        title: 'Updated',
-        text: 'Leave status updated successfully.',
-        icon: 'success',
-        timer: 1400,
-        showConfirmButton: false
-      });
-      fetchData();
-    } catch (updateError) {
-      Swal.fire({
-        title: 'Update Failed',
-        text: updateError?.message || 'Could not update this leave request.',
-        icon: 'error'
-      });
+    if (result.isConfirmed) {
+      statusMutation.mutate({ id, status });
     }
   };
+
+  const error = fetchError?.response?.data?.message || fetchError?.message;
 
   return (
     <>
@@ -170,7 +164,7 @@ const ManageLeaves = () => {
         </section>
 
         <section className="mlv-toolbar">
-          <form onSubmit={handleSearch} className="mlv-filter-form">
+          <form onSubmit={(e) => e.preventDefault()} className="mlv-filter-form">
             <div className="mlv-input with-icon">
               <i className="fas fa-search"></i>
               <input
@@ -200,10 +194,6 @@ const ManageLeaves = () => {
                 );
               })}
             </select>
-            <button type="submit" className="mlv-btn primary">
-              <i className="fas fa-search"></i>
-              Search
-            </button>
             <button type="button" className="mlv-btn secondary" onClick={handleReset}>
               <i className="fas fa-rotate"></i>
               Reset

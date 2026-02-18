@@ -13,22 +13,22 @@ export const getUsers = async () => {
 };
 
 export const addPhone = async (data) => {
-  const response = await axios.post(API_URL, data);
+  const response = await apiClient.post(API_URL, data);
   return response.data;
 };
 
 export const updatePhone = async (id, data) => {
-  const response = await axios.put(`${API_URL}/${id}`, data);
+  const response = await apiClient.put(`${API_URL}/${id}`, data);
   return response.data;
 };
 
 export const deletePhone = async (id) => {
-  const response = await axios.delete(`${API_URL}/${id}`);
+  const response = await apiClient.delete(`${API_URL}/${id}`);
   return response.data;
 };
 
 export const exportPhonesCSV = async (search = '') => {
-  const response = await axios.get(`${API_URL}/export?search=${search}`, {
+  const response = await apiClient.get(`${API_URL}/export?search=${search}`, {
     responseType: 'blob',
   });
   const url = window.URL.createObjectURL(new Blob([response.data]));
