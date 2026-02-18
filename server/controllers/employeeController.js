@@ -192,7 +192,7 @@ const updateEmployee = async (req, res) => {
         const { id } = req.params;
         const currentUserId = req.user?.id;
         const currentUserRole = req.user?.role || '';
-        const isPowerUser = ['admin', 'super admin'].includes(currentUserRole.toLowerCase());
+        const isPowerUser = ['admin', 'super admin', 'hr'].includes(currentUserRole.toLowerCase());
 
         // Permission Check
         if (!isPowerUser && parseInt(id) !== currentUserId) {
@@ -205,9 +205,20 @@ const updateEmployee = async (req, res) => {
         const currentUserData = currentDataRes.rows[0];
 
         let {
-            full_name, designation, email, phone, joining_date,
-            password, role, department, emergency_phone, nid_number,
-            blood_group, present_address, permanent_address, status
+            full_name = currentUserData.full_name,
+            designation = currentUserData.designation,
+            email = currentUserData.email,
+            phone = currentUserData.phone,
+            joining_date = currentUserData.joining_date,
+            password,
+            role = currentUserData.role,
+            department = currentUserData.department,
+            emergency_phone = currentUserData.emergency_phone,
+            nid_number = currentUserData.nid_number,
+            blood_group = currentUserData.blood_group,
+            present_address = currentUserData.present_address,
+            permanent_address = currentUserData.permanent_address,
+            status = currentUserData.status
         } = req.body;
 
         // Handle Files
@@ -217,7 +228,13 @@ const updateEmployee = async (req, res) => {
         if (req.files?.profile_pic) {
             if (profile_pic && profile_pic !== 'default.png') {
                 const oldPath = path.join('uploads', profile_pic);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                if (fs.existsSync(oldPath)) {
+                    try {
+                        fs.unlinkSync(oldPath);
+                    } catch (err) {
+                        console.error('Error deleting old profile pic:', err);
+                    }
+                }
             }
             profile_pic = req.files.profile_pic[0].filename;
         }
@@ -225,7 +242,13 @@ const updateEmployee = async (req, res) => {
         if (req.files?.nid_pic) {
             if (nid_pic) {
                 const oldPath = path.join('uploads', nid_pic);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                if (fs.existsSync(oldPath)) {
+                    try {
+                        fs.unlinkSync(oldPath);
+                    } catch (err) {
+                        console.error('Error deleting old NID pic:', err);
+                    }
+                }
             }
             nid_pic = req.files.nid_pic[0].filename;
         }
@@ -234,14 +257,15 @@ const updateEmployee = async (req, res) => {
         let values;
 
         // Password Logic
-        const newPassword = password ? password : currentUserData.password;
+        const newPassword = (password && password.trim() !== '') ? password : currentUserData.password;
 
         if (isPowerUser) {
-            const can_take_action = (role === 'Admin' || role === 'HR') ? 1 : 0;
-            const updatedStatus = status || currentUserData.status || 'Active';
+            const can_take_action = ['admin', 'super admin', 'hr'].includes(role.toLowerCase()) ? 1 : 0;
+            const updatedStatus = status || 'Active';
+            
             const roleIdRes = await pool.query(
                 `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
-                [role || currentUserData.role || 'Staff']
+                [role || 'Staff']
             );
             const role_id = roleIdRes.rows[0]?.id || currentUserData.role_id || null;
             
@@ -254,10 +278,25 @@ const updateEmployee = async (req, res) => {
                 WHERE id=$19
             `;
             values = [
-                full_name, designation, email, phone, joining_date,
-                newPassword, role, role_id, department, can_take_action, profile_pic,
-                emergency_phone, nid_number, nid_pic, blood_group,
-                present_address, permanent_address, updatedStatus, id
+                full_name || null, 
+                designation || null, 
+                email || null, 
+                phone || null, 
+                (joining_date && joining_date !== '') ? joining_date : null,
+                newPassword, 
+                role || 'Staff', 
+                role_id, 
+                department || null, 
+                can_take_action, 
+                profile_pic,
+                emergency_phone || null, 
+                nid_number || null, 
+                nid_pic || null, 
+                blood_group || null,
+                present_address || null, 
+                permanent_address || null, 
+                updatedStatus, 
+                id
             ];
         } else {
             // Staff can only update their own password and maybe some basic info
