@@ -56,6 +56,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/phone-directory" element={<PhoneDirectory />} />
+            <Route path="/reports" element={<LeaveReport />} />
             <Route path="/leave-report" element={<LeaveReport />} />
             <Route path="/user-dashboard" element={<UserDashboard />} />
             <Route path="/approval/:id" element={<ApprovalLetter />} />
