@@ -1,28 +1,4 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import PrivateRoute from './components/PrivateRoute';
-import Layout from './components/Layout';
 
-// Page imports
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import AdminDashboard from './components/AdminDashboard';
-import Employees from './pages/Employees';
-import MyLeaves from './pages/MyLeaves';
-import ManageLeaves from './pages/ManageLeaves';
-import ManageEntitlements from './pages/ManageEntitlements';
-import ManageMenus from './pages/ManageMenus';
-import ManagePermissions from './pages/ManagePermissions';
-import Profile from './pages/Profile';
-import PhoneDirectory from './pages/PhoneDirectory';
-import LeaveReport from './pages/LeaveReport';
-import UserDashboard from './pages/UserDashboard';
-import ApprovalLetter from './pages/ApprovalLetter';
-import Logout from './components/Logout';
-
-import ApplyLeave from './components/ApplyLeave';
-import LeaveCalendar from './components/LeaveCalendar';
-import EditEmployee from './components/EditEmployee';
 
 // Placeholder for unmigrated pages
 const UnderConstruction = () => (
