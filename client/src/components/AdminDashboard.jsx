@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import moment from 'moment';
 import ImageWithFallback from './ImageWithFallback';
 import NoticeTicker from './NoticeTicker';
@@ -13,31 +14,17 @@ const defaultDashboardData = {
 };
 
 const AdminDashboard = () => {
-  const [data, setData] = useState(defaultDashboardData);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: result, isLoading: loading, error } = useQuery({
+    queryKey: ['adminDashboard'],
+    queryFn: getAdminDashboardData,
+    select: (result) => ({
+      stats: { ...defaultDashboardData.stats, ...(result?.stats || {}) },
+      onLeaveList: Array.isArray(result?.onLeaveList) ? result.onLeaveList : [],
+      recentLeaves: Array.isArray(result?.recentLeaves) ? result.recentLeaves : []
+    }),
+  });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const result = await getAdminDashboardData();
-        if (result) {
-          setData({
-            stats: { ...defaultDashboardData.stats, ...(result.stats || {}) },
-            onLeaveList: Array.isArray(result.onLeaveList) ? result.onLeaveList : [],
-            recentLeaves: Array.isArray(result.recentLeaves) ? result.recentLeaves : []
-          });
-        }
-      } catch (fetchError) {
-        console.error('Error loading dashboard data:', fetchError);
-        setError('Dashboard data load failed. Please check your network or API.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const data = result || defaultDashboardData;
 
   const getGreeting = () => {
     const hour = moment().hour();
@@ -272,7 +259,9 @@ const AdminDashboard = () => {
       {loading ? (
         <DashboardSkeleton />
       ) : error ? (
-        <div className="alert alert-danger">{error}</div>
+        <div className="alert alert-danger">
+          {error.message || 'Dashboard data load failed. Please check your network or API.'}
+        </div>
       ) : (
         <>
           <DashboardHeader stats={data.stats} />

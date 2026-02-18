@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Modal } from 'react-bootstrap';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { getEmployees, getDepartments, getNextEmployeeId, addEmployee } from '../services/employeeService';
@@ -8,10 +9,15 @@ import '../styles/AdminDashboard.css';
 import '../styles/Employees.css';
 
 const Employees = () => {
-  const [employees, setEmployees] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ search: '', dept: '' });
+  
+  // Debounce search
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  React.useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(filters.search), 400);
+    return () => clearTimeout(handler);
+  }, [filters.search]);
 
   const [showModal, setShowModal] = useState(false);
   const [generatedId, setGeneratedId] = useState('Generating...');
@@ -24,17 +30,31 @@ const Employees = () => {
     nid_number: ''
   });
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
+  // Fetch departments
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: getDepartments,
+  });
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 400);
+  // Fetch employees with filters
+  const { data: employees = [], isLoading: loading } = useQuery({
+    queryKey: ['employees', debouncedSearch, filters.dept],
+    queryFn: () => getEmployees({ search: debouncedSearch, dept: filters.dept }),
+    placeholderData: (previousData) => previousData,
+  });
 
-    return () => clearTimeout(timer);
-  }, [filters.search, filters.dept]);
+  // Add employee mutation
+  const addMutation = useMutation({
+    mutationFn: addEmployee,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setShowModal(false);
+      Swal.fire('Success', 'Employee added successfully!', 'success');
+    },
+    onError: (error) => {
+      Swal.fire('Error', error.response?.data?.message || 'Failed to add employee.', 'error');
+    }
+  });
 
   const stats = useMemo(() => {
     const active = employees.filter((emp) => String(emp.status || 'Active').toLowerCase() === 'active').length;
@@ -45,39 +65,8 @@ const Employees = () => {
     };
   }, [employees]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const data = await getEmployees(filters);
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch (error) {
-      const serverMessage = error.response?.data?.message;
-      const debugInfo = error.response?.data?.debug
-        ? ` (Role: ${error.response.data.debug.role}, Permission: ${error.response.data.debug.p_manage_users})`
-        : '';
-      const message = serverMessage ? serverMessage + debugInfo : error.message || 'Failed to fetch employee list';
-      Swal.fire('Error', message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const data = await getDepartments();
-      setDepartments(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching departments', error);
-    }
-  };
-
   const handleFilterChange = (event) => {
     setFilters((prev) => ({ ...prev, [event.target.name]: event.target.value }));
-  };
-
-  const handleSearch = (event) => {
-    event.preventDefault();
-    fetchData();
   };
 
   const handleReset = () => {
@@ -117,15 +106,7 @@ const Employees = () => {
         payload.append(key, formData[key]);
       }
     });
-
-    try {
-      await addEmployee(payload);
-      setShowModal(false);
-      Swal.fire('Success', 'Employee added successfully!', 'success');
-      fetchData();
-    } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to add employee.', 'error');
-    }
+    addMutation.mutate(payload);
   };
 
   return (
@@ -162,7 +143,7 @@ const Employees = () => {
         </section>
 
         <section className="emp-filter-card">
-          <form onSubmit={handleSearch} className="emp-filter-form">
+          <form onSubmit={(e) => e.preventDefault()} className="emp-filter-form">
             <div className="emp-input with-icon">
               <i className="fas fa-search"></i>
               <input
@@ -187,11 +168,6 @@ const Employees = () => {
                 </option>
               ))}
             </select>
-
-            <button type="submit" className="emp-btn primary">
-              <i className="fas fa-magnifying-glass"></i>
-              Search
-            </button>
 
             <button type="button" className="emp-btn secondary" onClick={handleReset}>
               <i className="fas fa-rotate"></i>

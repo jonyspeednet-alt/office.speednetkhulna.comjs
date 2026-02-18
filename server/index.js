@@ -4,6 +4,7 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
@@ -21,6 +22,9 @@ if (!authSecretConfigured) {
 // ============================================
 // MIDDLEWARE SETUP
 // ============================================
+
+// Enable Gzip compression
+app.use(compression());
 
 // CORS Configuration - Allow React frontend
 const allowedOrigins = [
@@ -48,7 +52,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 // Serve Static Files (Uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+    maxAge: '1d',
+    etag: true
+}));
 
 // Simple Request Logger
 app.use((req, res, next) => {
@@ -67,6 +74,12 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
+
+// API Cache Control
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+});
 
 // ============================================
 // API ROUTES

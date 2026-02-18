@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getSidebarMenus } from '../services/sidebarService';
 import ImageWithFallback from './ImageWithFallback';
 import '../styles/Sidebar.css';
 
 const Sidebar = () => {
-  const [menuData, setMenuData] = useState({});
-  const [userRole, setUserRole] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem('sidebarCollapsed') === 'true';
@@ -20,34 +19,33 @@ const Sidebar = () => {
   const searchRef = useRef(null);
   const location = useLocation();
 
-  const [user, setUser] = useState({ name: 'User', role: 'Staff' });
   const [notificationCount] = useState(3);
 
-  useEffect(() => {
-    // Get user from localStorage
+  // Use React Query for sidebar menus
+  const { data: sidebarData } = useQuery({
+    queryKey: ['sidebarMenus'],
+    queryFn: getSidebarMenus,
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+
+  const menuData = sidebarData?.menuData || {};
+  const userRole = sidebarData?.role || '';
+
+  // Get user from localStorage
+  const user = useMemo(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
-        setUser({
+        return {
           name: parsedUser.full_name || 'User',
           role: parsedUser.role || 'Staff'
-        });
+        };
       } catch (e) {
         console.error('Error parsing user data', e);
       }
     }
-
-    const fetchData = async () => {
-      try {
-        const data = await getSidebarMenus();
-        setMenuData(data.menuData);
-        setUserRole(data.role);
-      } catch (error) {
-        console.error('Error fetching menu data:', error);
-      }
-    };
-    fetchData();
+    return { name: 'User', role: 'Staff' };
   }, []);
 
   // Apply theme on mount and change
