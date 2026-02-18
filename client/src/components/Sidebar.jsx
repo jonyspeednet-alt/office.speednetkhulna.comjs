@@ -21,11 +21,12 @@ const Sidebar = () => {
 
   const [notificationCount] = useState(3);
 
-  // Use React Query for sidebar menus
+  // Use React Query for sidebar menus - Add userId to queryKey to prevent cache leakage between users
   const { data: sidebarData } = useQuery({
-    queryKey: ['sidebarMenus'],
+    queryKey: ['sidebarMenus', user?.id],
     queryFn: getSidebarMenus,
     staleTime: 1000 * 60 * 30, // 30 minutes
+    enabled: !!user?.id, // Only run query if we have a user ID
   });
 
   const menuData = sidebarData?.menuData || {};
