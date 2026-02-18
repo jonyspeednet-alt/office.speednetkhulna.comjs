@@ -137,6 +137,7 @@ if (fs.existsSync(frontendDistPath)) {
 
 // Handle all non-API routes by serving the frontend or providing a clear error
 app.get(/^\/(?!api\/).*/, (req, res, next) => {
+    // Re-check existence to handle cases where dist is created after server starts
     if (fs.existsSync(frontendIndexPath)) {
         res.sendFile(frontendIndexPath, (err) => {
             if (err) next(err);
@@ -169,7 +170,10 @@ app.get(/^\/(?!api\/).*/, (req, res, next) => {
 
 app.get('/api/health', async (req, res) => {
     try {
+        const dbStart = Date.now();
         await db.query('SELECT 1');
+        const dbLatency = Date.now() - dbStart;
+
         const usersTableCheck = await db.query(
             "SELECT to_regclass('public.users') AS users_table"
         );
@@ -184,9 +188,18 @@ app.get('/api/health', async (req, res) => {
         res.json({ 
             status: 'OK',
             message: 'Server is running',
-            database: 'Connected',
+            database: {
+                status: 'Connected',
+                latency: `${dbLatency}ms`,
+                pool: {
+                    total: db.totalCount,
+                    idle: db.idleCount,
+                    waiting: db.waitingCount
+                }
+            },
             users_table_exists: hasUsersTable,
             users_count: usersCount,
+            environment: process.env.NODE_ENV || 'development',
             timestamp: new Date().toISOString()
         });
     } catch (err) {
