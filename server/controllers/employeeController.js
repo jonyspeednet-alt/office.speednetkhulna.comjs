@@ -205,21 +205,25 @@ const updateEmployee = async (req, res) => {
         const currentUserData = currentDataRes.rows[0];
 
         let {
-            full_name = currentUserData.full_name,
-            designation = currentUserData.designation,
-            email = currentUserData.email,
-            phone = currentUserData.phone,
-            joining_date = currentUserData.joining_date,
-            password,
-            role = currentUserData.role,
-            department = currentUserData.department,
-            emergency_phone = currentUserData.emergency_phone,
-            nid_number = currentUserData.nid_number,
-            blood_group = currentUserData.blood_group,
-            present_address = currentUserData.present_address,
-            permanent_address = currentUserData.permanent_address,
-            status = currentUserData.status
+            full_name, designation, email, phone, joining_date,
+            password, role, department, emergency_phone, nid_number,
+            blood_group, present_address, permanent_address, status
         } = req.body;
+
+        // Use existing data if fields are missing in body
+        full_name = full_name !== undefined ? full_name : currentUserData.full_name;
+        designation = designation !== undefined ? designation : currentUserData.designation;
+        email = email !== undefined ? email : currentUserData.email;
+        phone = phone !== undefined ? phone : currentUserData.phone;
+        joining_date = (joining_date !== undefined && joining_date !== '') ? joining_date : currentUserData.joining_date;
+        role = role !== undefined ? role : currentUserData.role;
+        department = department !== undefined ? department : currentUserData.department;
+        emergency_phone = emergency_phone !== undefined ? emergency_phone : currentUserData.emergency_phone;
+        nid_number = nid_number !== undefined ? nid_number : currentUserData.nid_number;
+        blood_group = blood_group !== undefined ? blood_group : currentUserData.blood_group;
+        present_address = present_address !== undefined ? present_address : currentUserData.present_address;
+        permanent_address = permanent_address !== undefined ? permanent_address : currentUserData.permanent_address;
+        status = status !== undefined ? status : currentUserData.status;
 
         // Handle Files
         let profile_pic = currentUserData.profile_pic;
@@ -260,7 +264,7 @@ const updateEmployee = async (req, res) => {
         const newPassword = (password && password.trim() !== '') ? password : currentUserData.password;
 
         if (isPowerUser) {
-            const can_take_action = ['admin', 'super admin', 'hr'].includes(role.toLowerCase()) ? 1 : 0;
+            const can_take_action = ['admin', 'super admin'].includes(role.toLowerCase()) ? 1 : 0;
             const updatedStatus = status || 'Active';
             
             const roleIdRes = await pool.query(
@@ -278,25 +282,10 @@ const updateEmployee = async (req, res) => {
                 WHERE id=$19
             `;
             values = [
-                full_name || null, 
-                designation || null, 
-                email || null, 
-                phone || null, 
-                (joining_date && joining_date !== '') ? joining_date : null,
-                newPassword, 
-                role || 'Staff', 
-                role_id, 
-                department || null, 
-                can_take_action, 
-                profile_pic,
-                emergency_phone || null, 
-                nid_number || null, 
-                nid_pic || null, 
-                blood_group || null,
-                present_address || null, 
-                permanent_address || null, 
-                updatedStatus, 
-                id
+                full_name, designation, email, phone, joining_date,
+                newPassword, role, role_id, department, can_take_action, profile_pic,
+                emergency_phone, nid_number, nid_pic, blood_group,
+                present_address, permanent_address, updatedStatus, id
             ];
         } else {
             // Staff can only update their own password and maybe some basic info
