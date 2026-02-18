@@ -39,7 +39,7 @@ jobs:
         working-directory: client
         env:
           NODE_ENV: production
-          VITE_API_URL: https://my.speednetkhulna.com
+          VITE_API_URL: /
         run: npm run build
 
       - name: Create Deployment Archive
@@ -280,6 +280,20 @@ jobs:
             fi
             find "$FRONTEND_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             cp -a "$APP_PATH/client/dist/." "$FRONTEND_PATH/"
+
+            # Write .htaccess for SPA routing and API proxy to Node backend
+            echo "Phase: write frontend .htaccess"
+            HTACCESS_FILE="$FRONTEND_PATH/.htaccess"
+            : > "$HTACCESS_FILE"
+            echo "RewriteEngine On" >> "$HTACCESS_FILE"
+            echo "RewriteRule ^api/(.*)$ http://127.0.0.1:5000/api/\$1 [P,L]" >> "$HTACCESS_FILE"
+            echo "RewriteRule ^uploads/(.*)$ http://127.0.0.1:5000/uploads/\$1 [P,L]" >> "$HTACCESS_FILE"
+            echo "RewriteCond %{REQUEST_FILENAME} -f [OR]" >> "$HTACCESS_FILE"
+            echo "RewriteCond %{REQUEST_FILENAME} -d" >> "$HTACCESS_FILE"
+            echo "RewriteRule ^ - [L]" >> "$HTACCESS_FILE"
+            echo "RewriteRule ^ index.html [L]" >> "$HTACCESS_FILE"
+            chmod 644 "$HTACCESS_FILE" || true
+            echo ".htaccess written at: $HTACCESS_FILE"
 
             # Health check with retries
             echo "Phase: health check"

@@ -7,7 +7,7 @@ import axios from 'axios';
 
 // Use Vite environment variables in the browser: `import.meta.env`.
 // If you need to override, set `VITE_API_URL` in a `.env` file at the project root.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 console.log('Axios Base URL:', API_BASE_URL);
 
 const apiClient = axios.create({
