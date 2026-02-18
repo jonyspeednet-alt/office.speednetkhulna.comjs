@@ -61,7 +61,6 @@ const LeaveReport = () => {
     const exportData = data.summaryReport.map((item, index) => {
       const row = {
         SL: index + 1,
-        'Emp ID': item.emp_id,
         'Employee Name': item.name,
         Designation: item.designation
       };
@@ -74,7 +73,7 @@ const LeaveReport = () => {
       return row;
     });
 
-    const totalRow = { SL: '', 'Emp ID': '', 'Employee Name': 'Grand Total', Designation: '' };
+    const totalRow = { SL: '', 'Employee Name': 'Grand Total', Designation: '' };
     data.leaveTypes.forEach((leaveType) => {
       totalRow[leaveType.name] = data.grandTypeCounts[leaveType.id] || '-';
     });
@@ -135,7 +134,7 @@ const LeaveReport = () => {
                 <option value="">All Employees</option>
                 {data.employeesList.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.full_name} ({emp.employee_id})
+                    {emp.full_name}
                   </option>
                 ))}
               </select>
@@ -192,7 +191,6 @@ const LeaveReport = () => {
               <thead>
                 <tr>
                   <th>SL</th>
-                  <th>Emp ID</th>
                   <th>Employee Name</th>
                   <th>Designation</th>
                   {data.leaveTypes.map((leaveType) => (
@@ -226,7 +224,6 @@ const LeaveReport = () => {
                   data.summaryReport.map((item, index) => (
                     <tr key={item.user_id}>
                       <td>{index + 1}</td>
-                      <td className="text-center fw-bold">{item.emp_id}</td>
                       <td className="fw-bold">{item.name}</td>
                       <td>{item.designation}</td>
                       {data.leaveTypes.map((leaveType) => (
@@ -241,7 +238,7 @@ const LeaveReport = () => {
 
               <tfoot>
                 <tr>
-                  <td colSpan="4" className="text-end text-uppercase fw-bold">
+                  <td colSpan="3" className="text-end text-uppercase fw-bold">
                     Grand Total
                   </td>
                   {data.leaveTypes.map((leaveType) => (
